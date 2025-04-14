@@ -22,7 +22,7 @@ console.log("Location to search current forecast: " + location);
 const apiForecastBase = "http://api.openweathermap.org/data/2.5/"
 
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, '../index.html'));
   });
 
 // Route to get weather for default location
