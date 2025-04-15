@@ -27,6 +27,8 @@ app.get('/', (req, res) => {
 
 // Route to get weather for default location
 app.get('/weather', async (req, res) => {
+
+    //Grabs location from user inpyut 
   
     const api_url = `https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${myAPIKey}&units=imperial`;
   
