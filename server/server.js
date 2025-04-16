@@ -24,18 +24,40 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../index.html'));
   });
 
+//Geocodes exact city user wants to find weather data for
+app.get('/geocode', async (req, res) => {
+
+  //Grabs location from user input
+  const input = req.query.input;
+  
+  const api_url = `https://api.openweathermap.org/geo/1.0/direct?q=${input}&limit=5&appid=${myAPIKey}`;
+  
+  try {
+    const fetch_response = await fetch(api_url);
+    const json = await fetch_response.json();
+
+    res.json(json);
+
+  } catch (error) {
+    console.error("Error fetching geocoding data:", error);
+    res.status(500).send("Failed to retrieve geocoding data.");
+  }
+});
+
 //Gets current weather data
 app.get('/current', async (req, res) => {
-  const location = req.query.location;
-  const api_url = `https://api.openweathermap.org/data/2.5/weather?q=${location}&units=imperial&appid=${myAPIKey}`;
+  
+  //Grabs lat long values from user input
+  const { lat, lon } = req.query;
+
+  const api_url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${myAPIKey}`;
 
   try {
     const fetch_response = await fetch(api_url);
     const json = await fetch_response.json();
 
-    console.log(json);
-
     res.json(json);
+
   } catch (error) {
     console.error("Error fetching current weather data:", error);
     res.status(500).send("Failed to retrieve current weather data.");
@@ -45,26 +67,26 @@ app.get('/current', async (req, res) => {
 //Gets 4-day forecast weather data
 app.get('/weather', async (req, res) => {
 
-    //Grabs location from user input
-    const location = req.query.location;
+  //Grabs lat long values from user input
+  const { lat, lon } = req.query;
   
-    const api_url = `https://api.openweathermap.org/data/2.5/forecast/daily?q=${location}&units=imperial&cnt=5&appid=${myAPIKey}`;
-  
-    try {
-      const fetch_response = await fetch(api_url);
-      const json = await fetch_response.json();
+  const api_url = `https://api.openweathermap.org/data/2.5/forecast/daily?lat=${lat}&lon=${lon}&units=imperial&cnt=5&appid=${myAPIKey}`;
 
-      console.log(json);
-  
-      res.json(json);
+  try {
+    const fetch_response = await fetch(api_url);
+    const json = await fetch_response.json();
 
-    } catch (error) {
-      console.error("Error fetching weather data:", error);
-      res.status(500).send("Failed to retrieve weather data.");
-    }
-  });
+    console.log(json);
 
-  // Start the server and listen on the specified port #
+    res.json(json);
+
+  } catch (error) {
+    console.error("Error fetching forecast data:", error);
+    res.status(500).send("Failed to retrieve forecast data.");
+  }
+});
+
+// Start the server and listen on the specified port #
 app.listen(PORT, '0.0.0.0', function(error) {
 
     if (error) {

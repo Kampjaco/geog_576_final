@@ -1,10 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Weather App</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+
+      /**
+      HOVERING OVER SUGGESTION RESULTS
+      **/
+      li:hover {
+          background-color: lightblue;
+      }
+
+
+      /**
+      EXPANDING WEATHER RESULTS CONTAINER
+      **/
+      #weatherResult {
+        min-height: 456px; /* Adjust this value as needed for your design */
+      }
+
+      @keyframes expandHeight {
+        from {
+          height: 0;
+          opacity: 0;
+        }
+        to {
+          height: auto;
+          opacity: 1;
+        }
+      }
+
+      .expanding {
+        overflow: hidden; /* Prevent content overflow during animation */
+      }
+
+
+      /**
+      FADE IN AND OUT FOR CURRENT & FORECAST WEATHER DATA
+      **/
+      @keyframes fadeOut {
+        from {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(20px); /* Optional: Adds a slight slide-down effect */
+        }
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .fade-out {
+        animation: fadeOut 0.5s ease-in-out; /* Duration for fade-out animation */
+      }
+
+      .fade-in {
+        animation: fadeIn 0.5s ease-in-out; /* Duration for fade-in animation */
+      }
+    </style>
+    
+
   </head>
   <body>
     <div class="container-fluid">
@@ -12,8 +82,9 @@
         <h1 class="mb-4">Weather Forecast</h1>
         <form id="weatherForm">
           <div class="mb-3">
-            <label for="locationInput" class="form-label">Enter Location</label>
+            <label for="locationInput" class="form-label">Enter City</label>
             <input type="text" class="form-control" id="locationInput" placeholder="e.g., Minneapolis">
+            <ul id="suggestions" class="list-group mt-1 position-absolute w-45" style="z-index: 1000;"></ul>
           </div>
           <button type="submit" class="btn btn-primary">Get Weather</button>
         </form>
@@ -34,58 +105,157 @@
     </div>
 
     <script>
-      //Gets weather data for city provided by user
-      //Updates weather data every time a new location is submitted
-      async function fetchWeather(location) {
-        const weatherResult = document.getElementById('weatherResult');
 
-        const curWeatherResult = document.getElementById('curWeatherResult');
-        const forecastWeatherGrid = document.getElementById('forecastWeatherGrid');
-    
+      //Dynamically creates suggestions based on user input
+      document.getElementById("locationInput").addEventListener("input", async () => {
+        const input = document.getElementById("locationInput");
+        const suggestions = document.getElementById("suggestions");
+        const query = input.value.trim();
+
+        if (query.length < 3) {
+          suggestions.innerHTML = "";
+          return;
+        }
+
         try {
-          // Fetch current weather
-          const currentRes = await fetch(`/current?location=${encodeURIComponent(location)}`);
-          const currentData = await currentRes.json();
+          const response = await fetch(`/geocode?input=${encodeURIComponent(query)}`);
+          const suggestData = await response.json();
 
-          // Fetch 4-day forecast
-          const forecastRes = await fetch(`/weather?location=${encodeURIComponent(location)}`);
-          const forecastData = await forecastRes.json();
-    
-          if (currentData.error || currentData.cod === "404" || forecastData.error || forecastData.cod === "404") {
-            weatherResult.innerHTML = `<p class="text-danger">Could not find weather for "${location}".</p>`;
-          } else {
-            //Current weather data
-            curWeatherResult.innerHTML = `
-              <h5>${currentData.name}, ${currentData.sys.country}</h5>
-              <p>Temp: ${Math.round(currentData.main.temp)} °F</p>
-              <p>Weather: ${currentData.weather[0].main}</p>
-            `;
+          // Clear previous suggestions
+          suggestions.innerHTML = ""; 
 
-            //Forecast weather data
-            forecastWeatherGrid.innerHTML = "";
+          suggestData.forEach((item) => {
+            const suggestion = document.createElement("li");
+            suggestion.classList.add("list-group-item", "suggestion-item"); // Added class for hover effect
+            suggestion.textContent = `${item.name}, ${item.state}, ${item.country}`;
 
-            //Starts reading from list[1] onwards
-            //Element at list[0] is current weather conditions, which are found using above code block
-            forecastData.list.slice(1).forEach((day, index) => {
-              const formattedDate = formatForecastDate(day.dt, index);
+            //Store lat/long data for grabbing correct city data
+            suggestion.dataset.lat = item.lat;
+            suggestion.dataset.lon = item.lon;
 
-              forecastWeatherGrid.innerHTML += `
-                <div class="col-6 mb-3">
-                  <h6>${formattedDate}</h6>
-                  <p>High: ${Math.round(day.temp.max)} °F</p>
-                  <p>Low: ${Math.round(day.temp.min)} °F</p>
-                  <p>${day.weather[0].main}</p>
-                  <img src="http://openweathermap.org/img/wn/${day.weather[0].icon}.png" alt="Weather icon">
-                </div>
-              `;
+            // Click listener to set full suggestion in input bar
+            suggestion.addEventListener("click", () => {
+              input.value = `${item.name}, ${item.state}, ${item.country}`;
+              input.dataset.lat = item.lat;
+              input.dataset.lon = item.lon;
+              suggestions.innerHTML = ""; // Clear suggestions on selection
             });
 
-          }
-        } catch (err) {
-          weatherResult.innerHTML = `<p class="text-danger">Error fetching weather data.</p>`;
-          console.error(err);
+            suggestions.appendChild(suggestion);
+          });
+        } catch (error) {
+          console.error("Error fetching suggestions:", error);
+        }
+      });
+
+
+      // Form submission listener
+      document.getElementById('weatherForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        //Nicely expands results box
+        expandWeatherResult();
+
+        //Fetches weather data
+        fetchWeather();
+      });
+
+      function expandWeatherResult() {
+        
+        const weatherResult = document.getElementById("weatherResult");
+
+        // If showing for the first time, apply the expanding animation
+        if (!weatherResult.classList.contains('expanding')) {
+          weatherResult.classList.add('expanding');
+          setTimeout(() => {
+            weatherResult.style.minHeight = `${weatherResult.offsetHeight}px`; // Fix the height after expansion
+            weatherResult.classList.remove('expanding'); // Clean up class after animation
+          }, 800); // Match animation duration
+        } else {
+          weatherResult.style.minHeight = `${weatherResult.offsetHeight}px`; // Keep height consistent on subsequent submissions
         }
       }
+
+
+      //Gets weather data for city provided by user
+      //Updates weather data every time a new location is submitted
+      async function fetchWeather() {
+        const weatherResult = document.getElementById('weatherResult');
+        const curWeatherResult = document.getElementById('curWeatherResult');
+        const forecastWeatherGrid = document.getElementById('forecastWeatherGrid');
+        const input = document.getElementById("locationInput");
+
+        // Trigger fade-out effect
+        curWeatherResult.classList.add('fade-out');
+        forecastWeatherGrid.classList.add('fade-out');
+
+        setTimeout(async () => {
+          //Clear old content
+          curWeatherResult.innerHTML = ""; // Clear old content
+          forecastWeatherGrid.innerHTML = ""; // Clear old content
+
+          // Remove fade-out class to reset the state
+          curWeatherResult.classList.remove('fade-out');
+          forecastWeatherGrid.classList.remove('fade-out');
+
+          // Get lat and lon from the input's dataset
+          const lat = input.dataset.lat;
+          const lon = input.dataset.lon;
+
+          if (!lat || !lon) {
+            weatherResult.innerHTML = `<p class="text-danger">Invalid coordinates for "${input}".</p>`;
+            console.log(input);
+            return;
+          }
+
+          try {
+            // Fetch current weather using coordinates
+            const currentRes = await fetch(`/current?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+            const currentData = await currentRes.json();
+
+            // Fetch 4-day forecast using coordinates
+            const forecastRes = await fetch(`/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+            const forecastData = await forecastRes.json();
+
+            if (currentData.error || currentData.cod === "404" || forecastData.error || forecastData.cod === "404") {
+              weatherResult.innerHTML = `<p class="text-danger">Could not find weather for "${input}".</p>`;
+            } else {
+              // Current weather data
+              curWeatherResult.classList.add('fade-in');
+              curWeatherResult.innerHTML = `
+                <h5>${currentData.name}, ${currentData.sys.country}</h5>
+                <p>Temp: ${Math.round(currentData.main.temp)} °F</p>
+                <p>Weather: ${currentData.weather[0].main}</p>
+              `;
+
+              forecastData.list.slice(1,5).forEach((day, index) => {
+                const formattedDate = formatForecastDate(day.dt, index);
+                forecastWeatherGrid.innerHTML += `
+                  <div class="col-6 mb-3">
+                    <h6>${formattedDate}</h6>
+                    <p>High: ${Math.round(day.temp.max)} °F</p>
+                    <p>Low: ${Math.round(day.temp.min)} °F</p>
+                    <p>${day.weather[0].main}</p>
+                    <img src="http://openweathermap.org/img/wn/${day.weather[0].icon}.png" alt="Weather icon">
+                  </div>
+                `;
+              });
+            }
+            // Trigger fade-in effect for new data
+            curWeatherResult.classList.add('fade-in');
+            forecastWeatherGrid.classList.add('fade-in');
+          } catch (err) {
+            weatherResult.innerHTML = `<p class="text-danger">Error fetching weather data.</p>`;
+            console.error(err);
+          }
+              // Remove fade-in class after animation to allow reuse
+          setTimeout(() => {
+            curWeatherResult.classList.remove('fade-in');
+            forecastWeatherGrid.classList.remove('fade-in');
+          }, 400); // Match fade-in duration
+        }, 400);
+      }
+
 
       //Converts dt attribute from Unix timestamp to readable date
       //Needed to add labels to 4 day forecast element
@@ -100,12 +270,7 @@
         return date.toLocaleDateString(undefined, options);
       }
     
-      // Form submission listener
-      document.getElementById('weatherForm').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const location = document.getElementById("locationInput").value;
-        fetchWeather(location);
-      });
+
     </script>
     
   </body>
