@@ -15,22 +15,40 @@ const { response } = require("express");
 const myAPIKey = process.env.OPENWEATHER_API_KEY;
 console.log("server.js(): my OpenWeatherMap API Key: " + myAPIKey);
 
-const location = process.env.LOCATION;
-console.log("Location to search current forecast: " + location);
 
 //Base API URLs
-const apiForecastBase = "http://api.openweathermap.org/data/2.5/"
+const apiForecastBase = "https://api.openweathermap.org/data/2.5/forecast/daily"
 
+//Sends results to index.html
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../index.html'));
   });
 
-// Route to get weather for default location
+//Gets current weather data
+app.get('/current', async (req, res) => {
+  const location = req.query.location;
+  const api_url = `https://api.openweathermap.org/data/2.5/weather?q=${location}&units=imperial&appid=${myAPIKey}`;
+
+  try {
+    const fetch_response = await fetch(api_url);
+    const json = await fetch_response.json();
+
+    console.log(json);
+
+    res.json(json);
+  } catch (error) {
+    console.error("Error fetching current weather data:", error);
+    res.status(500).send("Failed to retrieve current weather data.");
+  }
+});
+
+//Gets 4-day forecast weather data
 app.get('/weather', async (req, res) => {
 
-    //Grabs location from user inpyut 
+    //Grabs location from user input
+    const location = req.query.location;
   
-    const api_url = `https://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${myAPIKey}&units=imperial`;
+    const api_url = `https://api.openweathermap.org/data/2.5/forecast/daily?q=${location}&units=imperial&cnt=5&appid=${myAPIKey}`;
   
     try {
       const fetch_response = await fetch(api_url);
