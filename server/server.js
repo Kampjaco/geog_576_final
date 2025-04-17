@@ -50,13 +50,28 @@ app.get('/current', async (req, res) => {
   //Grabs lat long values from user input
   const { lat, lon } = req.query;
 
-  const api_url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${myAPIKey}`;
+  const weather_url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=imperial&appid=${myAPIKey}`;
 
   try {
-    const fetch_response = await fetch(api_url);
-    const json = await fetch_response.json();
+    const weather_response = await fetch(weather_url);
+    const weather_json = await weather_response.json();
 
-    res.json(json);
+    //Used to get accurate sunrise and sunset information
+    //Using this over data provided by OpenWeatherMap because OWM does not account for daylight savings
+    const geoNamesUsername = process.env.GEONAMES_USERNAME;
+    const geoNamesUrl = `http://api.geonames.org/timezoneJSON?lat=${lat}&lng=${lon}&username=${geoNamesUsername}`;
+
+    const tzResponse = await fetch(geoNamesUrl);
+    const tzData = await tzResponse.json();
+
+    if (!tzData.timezoneId) {
+      return res.status(500).json({ error: "Time zone data not available." });
+    }
+
+    // Attach timezoneId to weather response
+    weather_json.timezoneId = tzData.timezoneId;
+
+    res.json(weather_json);
 
   } catch (error) {
     console.error("Error fetching current weather data:", error);
