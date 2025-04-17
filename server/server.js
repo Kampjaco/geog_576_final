@@ -101,6 +101,28 @@ app.get('/weather', async (req, res) => {
   }
 });
 
+//Get information for weather map
+app.get('/map', async (req, res) => {
+  const { op, z, x, y} = req.query;
+
+  const mapUrl = `http://maps.openweathermap.org/maps/2.0/weather/${op}/${z}/${x}/${y}?appid=${myAPIKey}`;
+
+  try {
+    const response = await fetch(mapUrl);
+    if (!response.ok) throw new Error('Failed to fetch weather map tile.');
+
+    const imageBuffer = await response.arrayBuffer();
+
+    res.set('Content-Type', 'image/png');
+    res.send(Buffer.from(imageBuffer));
+
+  } catch (error) {
+    console.error('Map error:', error);
+    res.status(500).json({ error: 'Could not fetch map tile.' });
+  }
+
+})
+
 // Start the server and listen on the specified port #
 app.listen(PORT, '0.0.0.0', function(error) {
 
