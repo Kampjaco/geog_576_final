@@ -149,6 +149,7 @@
       //GLOBAL VARIABLES
       let lat;
       let lon;
+      let map;
 
       // WEATHER FORECAST JAVASCRIPT //
 
@@ -233,55 +234,60 @@
         const curWeatherResult = document.getElementById('curWeatherResult');
         const forecastWeatherGrid = document.getElementById('forecastWeatherGrid');
         const input = document.getElementById("locationInput");
+        const mapContainer = document.getElementById('map');
 
-        // Trigger fade-out effect
+        // Trigger fade-out for weather AND map
         curWeatherResult.classList.add('fade-out');
         forecastWeatherGrid.classList.add('fade-out');
+        mapContainer.classList.add('fade-out');
 
         setTimeout(async () => {
-          //Clear old content
-          curWeatherResult.innerHTML = ""; // Clear old content
-          forecastWeatherGrid.innerHTML = ""; // Clear old content
+          // Clear old content
+          curWeatherResult.innerHTML = "";
+          forecastWeatherGrid.innerHTML = "";
 
-          // Remove fade-out class to reset the state
-          curWeatherResult.classList.remove('fade-out');
-          forecastWeatherGrid.classList.remove('fade-out');
-
-          // Get lat and lon from the input's dataset
+          // Get lat/lon from input dataset
           const cityName = input.dataset.name;
           lat = input.dataset.lat;
           lon = input.dataset.lon;
 
+          // Remove fade-out to reset state
+          curWeatherResult.classList.remove('fade-out');
+          forecastWeatherGrid.classList.remove('fade-out');
+          mapContainer.classList.remove('fade-out');
+
           if (!lat || !lon) {
-            weatherResult.innerHTML = `<p class="text-danger">Invalid coordinates for "${input}".</p>`;
-            console.log(input);
+            weatherResult.innerHTML = `<p class="text-danger">Invalid coordinates for "${input.value}".</p>`;
             return;
           }
 
           try {
-            // Fetch current weather using coordinates
+
+            console.log(map);
+
+            if(!map) {
+              initializeMap(lat, lon);
+            } else {
+              map.setView([lat, lon], 14);
+            }
+            // Fetch current weather
             const currentRes = await fetch(`/current?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
             const currentData = await currentRes.json();
 
-            // Fetch 4-day forecast using coordinates
+            // Fetch forecast
             const forecastRes = await fetch(`/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
             const forecastData = await forecastRes.json();
 
             if (currentData.error || currentData.cod === "404" || forecastData.error || forecastData.cod === "404") {
-              weatherResult.innerHTML = `<p class="text-danger">Could not find weather for "${input}".</p>`;
+              weatherResult.innerHTML = `<p class="text-danger">Could not find weather for "${input.value}".</p>`;
             } else {
-
-              // Current weather data
-              curWeatherResult.classList.add('fade-in');
-              //Use forecaseData for high and low temps and rain percentage because currentData high/low temps are not satisfactory
-              //I want to show the high and low for the current day, and forecastData.list[0] has data for the current day
-              //It also has rain percentage change
+              // Fill in current weather
               curWeatherResult.innerHTML = `
                 <h5>Currently in ${cityName}</h5>
                 <p>${currentData.weather[0].main} - ${currentData.weather[0].description}</p>
                 <p>Temperature: ${Math.round(currentData.main.temp)} °F</p>
-                <p>High: ${Math.round(forecastData.list[0].temp.max)}</p>
-                <p>Low: ${Math.round(forecastData.list[0].temp.min)}</p>
+                <p>High: ${Math.round(forecastData.list[0].temp.max)} °F</p>
+                <p>Low: ${Math.round(forecastData.list[0].temp.min)} °F</p>
                 <p>Feels like: ${Math.round(currentData.main.feels_like)} °F</p>
                 <p>Chance of rain: ${forecastData.list[0].pop * 100}% </p>
                 <p>Sunrise: ${getSunTime(currentData.sys.sunrise, currentData.timezoneId)} AM</p>
@@ -289,10 +295,10 @@
                 <p>Wind: ${Math.round(currentData.wind.speed)} mph ${getWindDir(currentData.wind.deg)}</p>
                 <p>Visibility: ${metersToMiles(currentData.visibility)} mi</p>
                 <p>Humidity: ${currentData.main.humidity}%</p>
-
               `;
 
-              forecastData.list.slice(1,5).forEach((day, index) => {
+              // Fill in forecast
+              forecastData.list.slice(1, 5).forEach((day, index) => {
                 const formattedDate = formatForecastDate(day.dt, index);
                 forecastWeatherGrid.innerHTML += `
                   <div class="col-6 mb-3">
@@ -305,23 +311,27 @@
                 `;
               });
             }
-            // Trigger fade-in effect for new data
+
+            // Fade in new weather content
             curWeatherResult.classList.add('fade-in');
             forecastWeatherGrid.classList.add('fade-in');
+            mapContainer.classList.add('fade-in');
+
+            // Remove fade-in after animation so it can be triggered again later
+            setTimeout(() => {
+              curWeatherResult.classList.remove('fade-in');
+              forecastWeatherGrid.classList.remove('fade-in');
+              mapContainer.classList.remove('fade-in');
+            }, 400);
+
           } catch (err) {
             weatherResult.innerHTML = `<p class="text-danger">Error fetching weather data.</p>`;
             console.error(err);
           }
-              // Remove fade-in class after animation to allow reuse
-          setTimeout(() => {
-            curWeatherResult.classList.remove('fade-in');
-            forecastWeatherGrid.classList.remove('fade-in');
-          }, 400); // Match fade-in duration
-        }, 400);
 
-        //Create map
-        initializeMap(input.dataset.lat, input.dataset.lon)
+        }, 400); // Match fade-out duration
       }
+
 
       //Converts degree of wind direction to a cardinal direction
       function getWindDir(degrees) {
@@ -364,19 +374,18 @@
       /////////////////////////////////////////////////////////////////////////////////////
       
       // MAP JAVASCRIPT //
-      let map;
+      async function initializeMap(lat, lon) {
 
-      function initializeMap(x, y) {
-        zoom = 14;
         map = L.map('map', {
-          zoomControl: false // disable default position
-        }).setView([x, y], zoom);
+          zoomControl: false
+        }).setView([lat, lon], 14);
+        // Add zoom control to the right
+        L.control.zoom({ position: 'topright' }).addTo(map);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: 'Map data © OpenStreetMap contributors',
+          attribution: 'Map data © OpenStreetMap contributors',
         }).addTo(map);
-
-        L.control.zoom({ position: 'topright' }).addTo(map);
+         
       }
 
       document.addEventListener("DOMContentLoaded", function () {
@@ -392,6 +401,7 @@
         });
       });
 
+      //Changes overlay layer
       function updateMapLayer(layer) {
         if (!map) return;
 
