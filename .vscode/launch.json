@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "type": "chrome",
+        "request": "launch",
+        "name": "Debug Inline JS in HTML",
+        "url": "http://13.217.65.194:8000/#",
+        "webRoot": "${workspaceFolder}"
+      }
+    ]
+  }
+  

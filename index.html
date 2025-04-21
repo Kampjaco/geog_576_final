@@ -200,14 +200,17 @@
 
 
       // Form submission listener
-      document.getElementById('weatherForm').addEventListener('submit', (e) => {
+      document.getElementById('weatherForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
         //Nicely expands results box
         expandWeatherResult();
 
         //Fetches weather data
-        fetchWeather();
+        //Need AWAIT because lat lon values are set in this function and are needed for initializeMap
+        await fetchWeather();
+
+
 
       });
 
@@ -234,12 +237,12 @@
         const curWeatherResult = document.getElementById('curWeatherResult');
         const forecastWeatherGrid = document.getElementById('forecastWeatherGrid');
         const input = document.getElementById("locationInput");
-        const mapContainer = document.getElementById('map');
+        
 
         // Trigger fade-out for weather AND map
         curWeatherResult.classList.add('fade-out');
         forecastWeatherGrid.classList.add('fade-out');
-        mapContainer.classList.add('fade-out');
+        
 
         setTimeout(async () => {
           // Clear old content
@@ -254,7 +257,7 @@
           // Remove fade-out to reset state
           curWeatherResult.classList.remove('fade-out');
           forecastWeatherGrid.classList.remove('fade-out');
-          mapContainer.classList.remove('fade-out');
+          
 
           if (!lat || !lon) {
             weatherResult.innerHTML = `<p class="text-danger">Invalid coordinates for "${input.value}".</p>`;
@@ -263,13 +266,6 @@
 
           try {
 
-            console.log(map);
-
-            if(!map) {
-              initializeMap(lat, lon);
-            } else {
-              map.setView([lat, lon], 14);
-            }
             // Fetch current weather
             const currentRes = await fetch(`/current?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
             const currentData = await currentRes.json();
@@ -315,22 +311,26 @@
             // Fade in new weather content
             curWeatherResult.classList.add('fade-in');
             forecastWeatherGrid.classList.add('fade-in');
-            mapContainer.classList.add('fade-in');
 
             // Remove fade-in after animation so it can be triggered again later
             setTimeout(() => {
               curWeatherResult.classList.remove('fade-in');
               forecastWeatherGrid.classList.remove('fade-in');
-              mapContainer.classList.remove('fade-in');
             }, 400);
 
           } catch (err) {
             weatherResult.innerHTML = `<p class="text-danger">Error fetching weather data.</p>`;
             console.error(err);
           }
-
+          
+          //Creates and updates map
+          initializeMap(lat, lon)
         }, 400); // Match fade-out duration
+
       }
+
+
+
 
 
       //Converts degree of wind direction to a cardinal direction
@@ -374,18 +374,36 @@
       /////////////////////////////////////////////////////////////////////////////////////
       
       // MAP JAVASCRIPT //
+
       async function initializeMap(lat, lon) {
 
-        map = L.map('map', {
-          zoomControl: false
-        }).setView([lat, lon], 14);
-        // Add zoom control to the right
-        L.control.zoom({ position: 'topright' }).addTo(map);
+        mapContainer = document.getElementById("map");
+        mapContainer.classList.add('fade-out');
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: 'Map data © OpenStreetMap contributors',
-        }).addTo(map);
-         
+        setTimeout(async => {
+
+          mapContainer.classList.remove('fade-out');
+
+          if(!map) {
+            map = L.map('map', {
+              zoomControl: false
+            }).setView([lat, lon], 14);
+            // Add zoom control to the right
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: 'Map data © OpenStreetMap contributors',
+            }).addTo(map);
+          } else {
+            map.setView([lat, lon], 14);
+          }
+
+          mapContainer.classList.add('fade-in');
+
+          setTimeout(() => {
+            mapContainer.classList.remove('fade-in');
+          }, 400);
+        }, 400)
       }
 
       document.addEventListener("DOMContentLoaded", function () {
