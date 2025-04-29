@@ -19,6 +19,9 @@ console.log("server.js(): my OpenWeatherMap API Key: " + myAPIKey);
 //Base API URLs
 const apiForecastBase = "https://api.openweathermap.org/data/2.5/forecast/daily"
 
+// Serves all files in project root
+app.use(express.static(path.join(__dirname, '..'))); 
+
 //Sends results to index.html
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../index.html'));
