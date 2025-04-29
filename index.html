@@ -24,6 +24,19 @@
 
     <style>
 
+      .weather-wrapper, .map-wrapper {
+        background-color: rgba(255, 255, 255, 0.4); 
+        color: #000; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+        opacity: 90%;
+      }
+
+      #map {
+        opacity: 100%;
+      }
+
+
       /**
       HOVERING OVER SUGGESTION RESULTS
       **/
@@ -36,7 +49,7 @@
       EXPANDING WEATHER RESULTS CONTAINER
       **/
       #weatherResult {
-        min-height: 457px; /* Adjust this value as needed for your design */
+        min-height: 457px; 
       }
 
       @keyframes expandHeight {
@@ -65,7 +78,7 @@
         }
         to {
           opacity: 0;
-          transform: translateY(20px); /* Optional: Adds a slight slide-down effect */
+          transform: translateY(20px); /*Adds a slight slide-down effect */
         }
       }
 
@@ -81,22 +94,82 @@
       }
 
       .fade-out {
-        animation: fadeOut 0.5s ease-in-out; /* Duration for fade-out animation */
+        animation: fadeOut 0.5s ease-in-out forwards; /* Duration for fade-out animation */
       }
 
       .fade-in {
-        animation: fadeIn 0.5s ease-in-out; /* Duration for fade-in animation */
+        animation: fadeIn 0.5s ease-in-out forwards; /* Duration for fade-in animation */
       }
+
+      /**
+      BACKGROUND VIDEO CSS
+      **/
+      #bg-video {
+        position: fixed;
+        top: 0;
+        left: 0;
+        min-width: 100%;
+        min-height: 100%;
+        object-fit: cover;
+        z-index: -1;
+      }
+
+      #weather-app {
+        position: relative;
+        z-index: 1;
+        color: white;
+        padding: 1rem;
+      }
+
     </style>
     
 
   </head>
   <body>
+    <video autoplay muted loop id="bg-video"></video>
+    <!-- Splash Screen Modal -->
+    <div class="modal fade" id="splashModal" tabindex="-1" aria-labelledby="splashModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="splashModalLabel">Welcome to the Weather App!</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>Welcome to my Geog 576 Final Project - a full stack desktop weather application.  This project showcases the skills and techniques I have learned
+              while working through this class, specifically linking back-end development to front end styling and design.  I hope you enjoy this application and find it useful.
+            </p>
+            <p>
+              Use the application by entering a city in the text box, then selecting the city from the suggestions provided.  After pressing 'Get Weather', the current weather
+              and a 4 day forecast will appear in the left container, and a map centered on the searched city will appear in the right container.  The current weather data updates every
+              10 minutes.
+            </p>
+            <p>
+              The weather map has 4 different layers to choose from.  Temperature shows the air temperature at a height of 2 meters, Clouds shows the cloudiness, 
+              Precipitation shows precipitation intensity, and Wind Speed shows wind speed (color), and wind direction (arrows).
+            </p>
+            <p>
+              The backend is hosted on an AWS EC2 instance.  API calls are provided by the OpenWeatherMap service.  4 different weather API are being used to make this project function: Current Weather Data for
+              the current weather data, Daily Forecast 16 Days for the forecast data, Weather Maps 2.0 3-Hour Step for the weather map overlays, and Geocoding API for city name suggestions.
+              The map itself and basemap are provided by Leaflet and OpenStreetMap, respectively.  The front end is styled using Bootstrap and CSS.
+            </p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Got it!</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="container-fluid px-5">
       <div class="row justify-content-between gx-5">
         <!-- Weather Wrapper -->
         <div class="weather-wrapper bg-white p-4 mt-5 rounded shadow" style="width: 47.5%;">
-          <h1 class="mb-4">Weather Forecast</h1>
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="mb-0">Weather Forecast</h1>
+            <button class="btn btn-dark" data-bs-toggle="modal" data-bs-target="#splashModal">
+              Information
+            </button>
+          </div>
           <form id="weatherForm">
             <div class="mb-3 position-relative">
               <label for="locationInput" class="form-label">Enter City</label>
@@ -142,7 +215,7 @@
       </div>
     </div>
     
-    
+  
 
     <script>
 
@@ -150,7 +223,16 @@
       let lat;
       let lon;
       let map;
+      let currentData;
 
+      //Loads splash screen on page load
+      document.addEventListener("DOMContentLoaded", function () {
+        var splashModal = new bootstrap.Modal(document.getElementById('splashModal'));
+        splashModal.show();
+    });
+
+      //////////////////////////////////////////////////////////////////////////////////////
+      /////////////////////////////////////////////////////////////////////////////////////
       // WEATHER FORECAST JAVASCRIPT //
 
       //Dynamically creates suggestions based on user input
@@ -207,11 +289,8 @@
         expandWeatherResult();
 
         //Fetches weather data
-        //Need AWAIT because lat lon values are set in this function and are needed for initializeMap
-        await fetchWeather();
-
-
-
+        fetchWeather();
+ 
       });
 
       function expandWeatherResult() {
@@ -237,14 +316,17 @@
         const curWeatherResult = document.getElementById('curWeatherResult');
         const forecastWeatherGrid = document.getElementById('forecastWeatherGrid');
         const input = document.getElementById("locationInput");
-        
+        const videoBackground = document.getElementById('bg-video');
+        const mapContainer = document.getElementById("map");
 
-        // Trigger fade-out for weather AND map
+        //Trigger fade-out for all elements simultaneously
         curWeatherResult.classList.add('fade-out');
         forecastWeatherGrid.classList.add('fade-out');
-        
+        videoBackground.classList.add('fade-out');
+        mapContainer.classList.add('fade-out');
 
         setTimeout(async () => {
+
           // Clear old content
           curWeatherResult.innerHTML = "";
           forecastWeatherGrid.innerHTML = "";
@@ -254,10 +336,7 @@
           lat = input.dataset.lat;
           lon = input.dataset.lon;
 
-          // Remove fade-out to reset state
-          curWeatherResult.classList.remove('fade-out');
-          forecastWeatherGrid.classList.remove('fade-out');
-          
+
 
           if (!lat || !lon) {
             weatherResult.innerHTML = `<p class="text-danger">Invalid coordinates for "${input.value}".</p>`;
@@ -265,10 +344,9 @@
           }
 
           try {
-
             // Fetch current weather
             const currentRes = await fetch(`/current?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
-            const currentData = await currentRes.json();
+            currentData = await currentRes.json();
 
             // Fetch forecast
             const forecastRes = await fetch(`/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
@@ -306,31 +384,41 @@
                   </div>
                 `;
               });
+
+            // Update background video
+            updateWeatherBackground(currentData.weather[0].main);
+
+            // Update map
+            initializeMap(lat, lon);
             }
 
-            // Fade in new weather content
+            // Fade-in all elements simultaneously
             curWeatherResult.classList.add('fade-in');
             forecastWeatherGrid.classList.add('fade-in');
+            videoBackground.classList.add('fade-in');
+            mapContainer.classList.add('fade-in');
 
-            // Remove fade-in after animation so it can be triggered again later
+            // Remove fade-out to reset state
+            curWeatherResult.classList.remove('fade-out');
+            forecastWeatherGrid.classList.remove('fade-out');
+            videoBackground.classList.remove('fade-out');
+            mapContainer.classList.remove('fade-out');
+
+
+            // Remove fade-in classes after animation completes
             setTimeout(() => {
               curWeatherResult.classList.remove('fade-in');
               forecastWeatherGrid.classList.remove('fade-in');
+              videoBackground.classList.remove('fade-in');
+              mapContainer.classList.remove('fade-in');
             }, 400);
 
           } catch (err) {
             weatherResult.innerHTML = `<p class="text-danger">Error fetching weather data.</p>`;
             console.error(err);
           }
-          
-          //Creates and updates map
-          initializeMap(lat, lon)
         }, 400); // Match fade-out duration
-
       }
-
-
-
 
 
       //Converts degree of wind direction to a cardinal direction
@@ -377,37 +465,22 @@
 
       async function initializeMap(lat, lon) {
 
-        mapContainer = document.getElementById("map");
-        mapContainer.classList.add('fade-out');
+        if(!map) {
+          map = L.map('map', {
+            zoomControl: false
+          }).setView([lat, lon], 14);
+          // Add zoom control to the right
+          L.control.zoom({ position: 'topright' }).addTo(map);
 
-        setTimeout(async => {
-
-          mapContainer.classList.remove('fade-out');
-
-          if(!map) {
-            map = L.map('map', {
-              zoomControl: false
-            }).setView([lat, lon], 14);
-            // Add zoom control to the right
-            L.control.zoom({ position: 'topright' }).addTo(map);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              attribution: 'Map data © OpenStreetMap contributors',
-            }).addTo(map);
-          } else {
-            map.setView([lat, lon], 14);
-          }
-
-          mapContainer.classList.add('fade-in');
-
-          setTimeout(() => {
-            mapContainer.classList.remove('fade-in');
-          }, 400);
-        }, 400)
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: 'Map data © OpenStreetMap contributors',
+          }).addTo(map);
+        } else {
+          map.setView([lat, lon], 14);
+        }
       }
 
       document.addEventListener("DOMContentLoaded", function () {
-        // Initialize map at default location — update these as needed
 
         // Dropdown listener
         document.getElementById("layerOptions").addEventListener("click", (e) => {
@@ -438,7 +511,34 @@
         }).addTo(map);
       }
 
-    
+      //////////////////////////////////////////////////////////////////////////////////////
+      /////////////////////////////////////////////////////////////////////////////////////
+      
+      // WEATHER BACKGROUND JAVASCRIPT //
+
+      async function updateWeatherBackground(weather) {
+
+        const videoBackground = document.getElementById('bg-video');
+
+        const weatherVideos = {
+          Clear: 'assets/clear.mp4',
+          Clouds: 'assets/clouds.mp4',
+          Rain: 'assets/rain.mp4',
+          Snow: 'assets/snow.mp4',
+          Drizzle: 'assets/drizzle.mp4',
+          Dust: 'assets/dust.mp4',
+          Haze: 'assets/haze.mp4',
+          Mist: 'assets/mist.mp4',
+          Smoke: 'assets/smoke.mp4',
+          Thunderstorm: 'assets/thunderstorm.mp4'
+        };
+
+        const matchedVideo = weatherVideos[weather];
+
+        if (videoBackground.src !== matchedVideo) {
+          videoBackground.src = matchedVideo;
+        }
+      }
 
     </script>
     
